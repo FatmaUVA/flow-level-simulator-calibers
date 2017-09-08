@@ -37,93 +37,78 @@ class Scheduler:
         count_f =0 # counter for the number of flows involved in pacing
         involved_flows = [] #involved flows considered for reshaping
         involved_flows_id = []
-        new_f_Rresid = [] # to find th max rate new_f can go up to
         # first for each link find if Rmin is avilable by taking the slack
         for i in p:
             l = self.topo.Link_set[i]
             sum_slack = 0
-            found_R = False # used to indicate if no rate was found
             if len(l.flows) == 0: # if no flows in the link
                 sum_slack = C
             else:
                 for f in l.flows: #f holds only the flow id
+                    sum_slack = sum_slack + self.flows[f].slack
                     if f not in involved_flows_id:
-                        sum_slack = sum_slack + self.flows[f].slack
                         involved_flows_id.append(f)
                         involved_flows.append(self.flows[f])
-            new_f_Rresid.append(sum_slack)
             if sum_slack < new_f.Rmin: #no enough rate to reach its deadline
-                break
-            else:
-                found_R = True
+                self.reject_count = self.reject_count + 1
+                if self.debug == True:
+                    print "Reject, no available bandwidth in link ",l.link_id," even with pacing"
+                return 0
+        
         # Rresid available for the new flow across the entire path
-        max_new_f_Rresid = min(new_f_Rresid)
-        if found_R == False:
-            if self.debug == True:
-                print "Reject, no available bandwidth in link ",l.link_id," even with pacing"
-            self.reject_count = self.reject_count + 1
-            return 0
+        if self.debug == True:
+            print "Success,Rmin is available, reshaping will be done"
 
+        # Rmin found
+        # first give it the minimum then redistribute slack rate
+        new_f.Ralloc = new_f.Rmin
+        new_f.te = int(self.t_now + ceil( (new_f.size/(new_f.Ralloc*1))/epoch))
+        if new_f.te > new_f.td:
+            new_f.te = new_f.td
+        new_f.slack = new_f.Ralloc - new_f.Rmin
+        self.flows[new_f.flow_id] = new_f
+        self.success_count = self.success_count + 1
+        involved_flows.append(new_f)
+        involved_flows_id.append(new_f.flow_id)
+        #update links with the new flow
+        for i in p:
+            l = self.topo.Link_set[i]
+            l.flows.append(new_f.flow_id)
+
+        #assign Rmin to all involved flows
+        for f in involved_flows_id:
+            self.flows[f].Ralloc = self.flows[f].Rmin
+        # now distribute residual rate
+        reshaped_flows = [] #holds flow_id
+        #sort by te
+        if self.algo == 'sjf':
+            involved_flows.sort(key=lambda x: x.te, reverse=False)
+        elif self.algo == 'ljf':
+            involved_flows.sort(key=lambda x: x.te, reverse=True)
         else:
-            if self.debug == True:
-                print "Success, reshaping will be done"
-
-            # Rmin found
-            # first give it the minimum then redistribute slack rate
-            new_f.Ralloc = new_f.Rmin
-            new_f.te = int(self.t_now + ceil( (new_f.size/(new_f.Ralloc*1))/epoch))
-            if new_f.te > new_f.td:
-                new_f.te = new_f.td
-            new_f.slack = new_f.Ralloc - new_f.Rmin
-            self.flows[new_f.flow_id] = new_f
-            self.success_count = self.success_count + 1
-            involved_flows.append(new_f)
-            #update links with the new flow
+            print "invalid algo"
+        
+        for f in involved_flows:
+            p = self.topo.paths[(f.src,f.dst)]
+            path_Rresid = []
             for i in p:
                 l = self.topo.Link_set[i]
-                l.flows.append(new_f.flow_id)
-
-            # now distribute residual rate
-            reshaped_flows = [] #holds flow_id
-            #sort by te
-            if self.algo == 'sjf':
-                involved_flows.sort(key=lambda x: x.te, reverse=False)
-            elif self.algo == 'ljf':
-                involved_flows.sort(key=lambda x: x.te, reverse=True)
-            else:
-                print "invalid algo"
-            #create sets to do issubset operation
-            for f in involved_flows:
-                pi = self.topo.paths[(f.src,f.dst)]
-                l = self.topo.Link_set[pi[0]] # read any link in the path, any way f will not get more than Rresid
-                C_resid = C # the residual capacity after removing the reshaped flows
-                temp_sum_slack = 0
-                temp_sum_Rmin = 0
+                temp_sum = 0
                 for x in l.flows:
-                    if x not in reshaped_flows:
-                        reshaped_flows.append(x)
-                        temp_sum_Rmin = temp_sum_Rmin + self.flows[x].Rmin
-                    else: #the flow already reshaped, we don't consider its slack
-                        #C_resid =  C_resid - self.flows[x].Ralloc
-                        temp_sum_Rmin = temp_sum_Rmin + self.flows[x].Ralloc
-
-                l_slack = C_resid - temp_sum_Rmin # link slack capacity that we want to redistribute
-                if l_slack > 0:
-                    #if  min(self.flows[f].Ralloc, self.flows[f].Rmin + l_slack) == self.flows[f].Ralloc: #TODO redistribute he bandwidth at the path of f
-                    if f.flow_id == new_f.flow_id: # the new has a different max compared to other flows
-                        self.flows[f.flow_id].Ralloc = min(max_new_f_Rresid, self.flows[f.flow_id].Rmin + l_slack)
-                    else:
-                        self.flows[f.flow_id].Ralloc = min(self.flows[f.flow_id].Ralloc, self.flows[f.flow_id].Rmin + l_slack)
-                    l_slack = l_slack - self.flows[f.flow_id].Ralloc
-                else: #if no link slack, just assign it Rmin
-                    self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
-                
-                self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
-                self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-                if int(self.flows[f.flow_id].te) > int(self.flows[f.flow_id].td):
-                    self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                if self.debug == True:
-                    print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
+                    temp_sum = temp_sum + self.flows[x].Ralloc 
+                l_slack = C - temp_sum # link slack capacity that we want to redistribute
+                if l_slack <= 0:
+                    path_Rresid.append(0)
+                    break #no resid bandwidth in one of the links on the path so break
+                path_Rresid.append(l_slack)
+            f_max_path_Rresid = min(path_Rresid)
+            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
+            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
+            self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id]    .Ralloc*1.0)) /epoch))
+            if int(self.flows[f.flow_id].te) > int(self.flows[f.flow_id].td):
+                self.flows[f.flow_id].te = self.flows[f.flow_id].td
+            if self.debug == True:
+                print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
 
     def revert_flow_changes(self,involved_flows):
         for f in involved_flows:
@@ -244,7 +229,7 @@ class Scheduler:
 	    #new_f.flow_id = self.no_request
 	    new_f = flow(self.no_request,req.size,req.td,req.src,req.dst,self.t_now) # the new flow to schedul
             if self.debug == True:
-                print "new request id: ",new_f.flow_id," size ",req.size," td ", req.td," src,dst ",req.src,req.dst
+                print "new request id: ",new_f.flow_id,"path",p," size ",req.size," td ", req.td," src,dst ",req.src,req.dst
 
             # find Rresidual bandwidth in the path p
 	    avail_rate = []
