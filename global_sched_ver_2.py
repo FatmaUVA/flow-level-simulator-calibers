@@ -79,7 +79,6 @@ class Scheduler:
         for f in involved_flows_id:
             self.flows[f].Ralloc = self.flows[f].Rmin
         # now distribute residual rate
-        reshaped_flows = [] #holds flow_id
         #sort by te
         if self.algo == 'sjf':
             involved_flows.sort(key=lambda x: x.te, reverse=False)
