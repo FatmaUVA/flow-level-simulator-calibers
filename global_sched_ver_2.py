@@ -81,9 +81,9 @@ class Scheduler:
         # now distribute residual rate
         #sort by te
         if self.algo == 'sjf':
-            involved_flows.sort(key=lambda x: x.te, reverse=False)
+            involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
         elif self.algo == 'ljf':
-            involved_flows.sort(key=lambda x: x.te, reverse=True)
+            involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
         else:
             print "invalid algo"
         
@@ -153,9 +153,9 @@ class Scheduler:
 		
             #sort by te
             if self.algo == 'sjf':
-                involved_flows.sort(key=lambda x: x.te, reverse=False)
+                involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
             elif self.algo == 'ljf':
-                involved_flows.sort(key=lambda x: x.te, reverse=True)
+                involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
             else:
                 print "invalid algo"
             #create sets to do issubset operation
