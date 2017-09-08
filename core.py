@@ -29,7 +29,7 @@ class Topology:
     def __init__(self, links, paths,c,epochx):
         global C
         global epoch
-        C = c
+        C = int(c * 1e6)
         epoch = float(epochx)
         self.links=links
         self.paths=paths
