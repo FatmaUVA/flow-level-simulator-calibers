@@ -42,43 +42,39 @@ class Scheduler:
             temp_flows = [] # flows at each link
             involved_flows = [] # flows that will be paced down
             for f in l.flows:
-                temp_flows.append(self.flows[f])
+                temp_flows.append(self.flows[f]) # we need the flow object to sort
             #sort by slack value
             temp_flows.sort(key=lambda x: x.slack, reverse=True)
             found_R = False
             #first before chacking the flows slack, check ressidual bw in the link, in case a flow was paced and now more bandwidth is available
             temp_sum = 0
             for f in temp_flows:
-                temp_sum = temp_sum + f.Ralloc
+                temp_sum = temp_sum + self.flows[f.flow_id].Ralloc
             temp_Rresid = C - temp_sum
             if temp_Rresid < 0: #this is due to floating point rounding
                 temp_Rresid = 0
 
             if new_f.Rmin <= temp_Rresid:
+                # no need to pace othe flows
                 avail_rate.append(temp_Rresid)
-                found_R = True #TODO check do I need to set it true here
-            # no need to pace othe flows
+                found_R = True
             else:
                 temp_sum = 0
                 for f in temp_flows:
                     count_f = count_f + 1
                     if count_f <= self.pace_threshold:
-                        involved_flows.append(f) # keep the flow original info
-                        temp_sum = temp_sum + f.slack
+                        involved_flows.append(self.flows[f.flow_id]) # keep the flow original info
+                        temp_sum = temp_sum + self.flows[f.flow_id].slack
                         if self.debug == True:
-                            print "before pacing: flow :",f.flow_id,"Ralloc and  slack = ",f.Ralloc," ", f.slack," te ",self.flows[f.flow_id].te
-                        if temp_sum+temp_Rresid >= new_f.Rmin: #TODO not sure if I should add tem_Rresid (done) but should I do =
+                            print "before pacing: flow :",f,"Ralloc and  slack = ",self.flows[f.flow_id].Ralloc," ", self.flows[f.flow_id].slack," te ",self.flows[f.flow_id].te
+                        if temp_sum+temp_Rresid >= new_f.Rmin:
                             self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + ((temp_sum +temp_Rresid) - new_f.Rmin)
                             self.flows[f.flow_id].te = self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch)
-                            #self.flows[f.flow_id].te = int(self.t_now + (self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc) /epoch)
                             if self.flows[f.flow_id].te > self.flows[f.flow_id].td: #this is due to floating point op I'll have a file explaining
-                                #print "In pacing true te > tdRalloc =",self.flows[f.flow_id].Ralloc,"remain =",self.flows[f.flow_id].remain_data,"te =",self.flows[f.flow_id].te,"td =",self.flows[f.flow_id].td
                                 self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                            if  self.flows[f.flow_id].te == int(self.t_now):
-                                #print "In pacing true te = t_now Ralloc =",self.flows[f.flow_id].Ralloc,"remain =",self.flows[f.flow_id].remain_data,"te =",self.flows[f.flow_id].te,"td =",self.flows[f.flow_id].td
+                            if  self.flows[f.flow_id].te == self.t_now:
                                 self.flows[f.flow_id].te = self.flows[f.flow_id].te + 1
-                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc -self.flows[f.flow_id].Rmin
-                            #self.flows[f.flow_id].update()
+                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
                             if self.debug == True:
                                 print "after pacing: flow :",f.flow_id," Ralloc: ",self.flows[f.flow_id].Ralloc," te ",self.flows[f.flow_id].te
                             avail_rate.append(new_f.Rmin)
@@ -87,18 +83,12 @@ class Scheduler:
                         else:
                             #update flow Ralloc te slack
                             self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
-                            if self.flows[f.flow_id].Ralloc <= 0:
-                                print "Ralloc zero ",self.flows[f.flow_id].Ralloc,"size",self.flows[f.flow_id].size,"sent",self.flows[f.flow_id].sent_data
-                            self.flows[f.flow_id].te = self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch)
-                            #self.flows[f.flow_id].te = int(self.t_now +  (self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc) /epoch)
+                            self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
                             if self.flows[f.flow_id].te > self.flows[f.flow_id].td: #this is due to floating point op
-                                #print "In pacing true te > tdRalloc =",self.flows[f.flow_id].Ralloc,"remain =",self.flows[f.flow_id].remain_data
                                 self.flows[f.flow_id].te = self.flows[f.flow_id].td
                             if  self.flows[f.flow_id].te == int(self.t_now):
-                                #print "In pacing true te = t_now Ralloc =",self.flows[f.flow_id].Ralloc,"remain =",self.flows[f.flow_id].remain_data
                                 self.flows[f.flow_id].te = self.flows[f.flow_id].te + 1
-                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc -self.flows[f.flow_id].Rmin
-                            #self.flows[f.flow_id].update()
+                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
                     else:
                         if self.debug == True:
                             print "Reject, cannot pace more than 100 flows"
@@ -114,24 +104,19 @@ class Scheduler:
 
         self.success_count = self.success_count + 1
         new_f.Ralloc = new_f.Rmin
-        new_f.te = self.t_now + ceil( ((new_f.size)/(new_f.Ralloc*1.0))/epoch)
+        new_f.te = int(self.t_now + ceil( ((new_f.size)/(new_f.Ralloc*1.0))/epoch))
         if new_f.te > new_f.td: #this is due to floating point op
-            #print "In new flow true te > td Ralloc =",new_f.Ralloc,"remain =",new_f.remain_data,"te=",new_f.te,"td=",new_f.td,"size=",new_f.size,"Rmin=",new_f.Rmin,"t_now=",self.t_now,"inside ceil=", ceil(((new_f.size*8)/new_f.Ralloc)/epoch),
             new_f.te = new_f.td
         if int(new_f.te) == int(self.t_now):
             new_f.te = new_f.te + 1
-            #print "In new flow true te =t_now Ralloc =",new_f.Ralloc,"remain =",new_f.remain_data,"te=",new_f.te,"td=",new_f.td,"size=",new_f.size,"Rmin=",new_f.Rmin,"t_now=",self.t_now,"inside ceil=", ceil(((new_f.size*8)/new_f.Ralloc)/epoch),
         new_f.slack = new_f.Ralloc - new_f.Rmin
-        #new_f.update()
         self.flows[new_f.flow_id] = new_f
         if self.debug == True:
             print "Success, the flow was assigned rate of ", new_f.Ralloc," Rmin ",new_f.Rmin," te ",new_f.te
         #update links with the new flow
         for i in p:
             l = self.topo.Link_set[i]
-            l.flows.append(new_f.flow_id)
-
-		
+            l.flows.append(new_f.flow_id)		
 		 
     def revert_flow_changes(self,involved_flows):
         for f in involved_flows:
@@ -159,7 +144,7 @@ class Scheduler:
                 current_flows[f] = self.flows[f]
                 current_flows[f].update(self.t_now)
         self.flows = current_flows #current_flow does not include the finished flows
-        
+
         #Find the disjoint set of impacted links
         involved_links = []
         involved_flows = []
@@ -174,8 +159,17 @@ class Scheduler:
                     if f not in involved_flows_id:
                         involved_flows.append(self.flows[f])
                         involved_flows_id.append(f)
+        self.reshape(involved_links,involved_flows)
 
-        #sort links by most-bottleneack link
+    #when a flow finishes or a new flow comes, how to redistribute the slack capacity, is what this function do
+    def reshape(self,involved_links,involved_flows):
+        global C
+
+        #assign Rmin to all involved flows
+        for f in involved_flows:
+            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
+
+        #sort links by most-bottleneck link
         max_te_link = dict()
         for i in involved_links: # go through each link (i holds link id)
             l = self.topo.Link_set[i]
@@ -184,58 +178,46 @@ class Scheduler:
                 if self.flows[j].te > max_te:
                     max_te = self.flows[j].te
             max_te_link[l.link_id] = max_te
-        
+
+        # now distribute residual rate
+        # start with link that will stay busy the longest
+        # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
         sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
-        reshaped_flows = [] # list of flows that have been reshaped ( no need to reshape them if found in another link)
-        involved_links_set = set(involved_links)
+        # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
         for j in sorted_te:
-            l = self.topo.Link_set[j[0]] # i[count][0] return the the link_id which we need to ge the other link info
+            l = self.topo.Link_set[j[0]] # j[count][0] return the the link_id which we need to ge the other link info
             involved_flows = []
             for f in l.flows:
                 involved_flows.append(self.flows[f])
+            #sort by remain_data
             if self.algo == 'sjf':
                 involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
             elif self.algo == 'ljf':
                 involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
             else:
                 print "invalid algo"
-                return 0
+
             for f in involved_flows:
-                pi = self.topo.paths[(self.flows[f.flow_id].src,self.flows[f.flow_id].dst)]
-                p_set = set(pi)
-                if p_set.issubset(involved_links_set) and f.flow_id not in reshaped_flows:
-                    # allocate more rate to f
-                    reshaped_flows.append(f.flow_id)
-                    path_Rresid = []
-                    for i in pi:
-                        l = self.topo.Link_set[i]
-                        temp_sum = 0
-                        for x in l.flows:
-                            temp_sum = temp_sum + self.flows[x].Ralloc
-                        l.Rresid = C - temp_sum
-                        path_Rresid.append(l.Rresid)
-                    Rresid = min(path_Rresid)
-                    if (self.flows[f.flow_id].Ralloc + Rresid) <= self.flows[f.flow_id].Rmax and Rresid > 0:
-                        self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Ralloc + Rresid
-                        self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-                        self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
-			if self.flows[f.flow_id].te > self.flows[f.flow_id].td:
-			    #print "true te < td" 
-			    self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                        if int(self.flows[f.flow_id].te) == int(self.t_now):
-                            print "te = t_now, te ="#,self.flows[f.flow_id.te,"t_now =",self.t_now,"Inside ceil",(self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc) /epoch,"result of ceil",ceil( (self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc) /epoch)
-                        #self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-			#print "link is ",l.link_id ," error, flow ",f.flow_id,"  size-sent ",self.flows[f.flow_id].size - self.flows[f.flow_id]    .sent_data," Ralloc ",self.flows[f.flow_id].Ralloc,"epoch ",epoch," t_now ",self.t_now," te ",self.flows[f.flow_id].te, " Rmin ",self.flows[f.flow_id].Rmin," flow path is ",p
-                    elif (self.flows[f.flow_id].Ralloc + Rresid) > self.flows[f.flow_id].Rmax and Rresid > 0:
-                        self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmax
-                        self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-			self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
-			if self.flows[f.flow_id].te > self.flows[f.flow_id].td:
-			    #print "true te < td"
-			    self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                        if int(self.flows[f.flow_id].te) == int(self.t_now):
-                            print "te = t_now, te ="#,self.flows[f.flow_id.te,"t_now =",self.t_now,"Inside ceil",(self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc) /epoch,"result of ceil",ceil((self.flows[f.flow_id].remain_data/self.flows[f.flow_id].Ralloc)/epoch)
-			#self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
+                p = self.topo.paths[(f.src,f.dst)]
+                path_Rresid = []
+                for i in p:
+                    l = self.topo.Link_set[i]
+                    temp_sum = 0
+                    for x in l.flows:
+                        temp_sum = temp_sum + self.flows[x].Ralloc
+                    l_slack = C - temp_sum # link slack capacity that we want to redistribute
+                    if l_slack <= 0:
+                        path_Rresid.append(0)
+                        break #no resid bandwidth in one of the links on the path so break
+                    path_Rresid.append(l_slack)
+                f_max_path_Rresid = min(path_Rresid)
+                self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
+                self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
+                self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
+                if int(self.flows[f.flow_id].te) > int(self.flows[f.flow_id].td):
+                    self.flows[f.flow_id].te = self.flows[f.flow_id].td
+                if self.debug == True:
+                    print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
 
     def sched(self,requests):
         global epoch
