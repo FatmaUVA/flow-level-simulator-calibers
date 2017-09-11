@@ -9,19 +9,18 @@ import global_sched_ver_1
 import global_sched_ver_2
 import local_sched_ver_1
 import local_sched_ver_2
-import naive_sched
 import matplotlib.pyplot as plt
+
 import collections
 
 G=nx.Graph()
-nodes=range(1,13) #12 nodes
+nodes=range(1,21) #20 nodes
 G.add_nodes_from(nodes)
-edges=[(1,2),(1,3),(2,5),(3,4),(3,6),(4,5),(4,7),(4,8),(5,6),(6,7),(6,8),(7,11),(7,8),(8,10),(9,10),(9,11),(10,11),(10,12),(11,12)]
+edges = [(1,2),(1,3),(3,4),(3,5),(4,7),(2,5),(5,6),(6,7),(5,8),(7,9),(8,9),(8,11),(11,12),(9,12),(10,11),(10,13),(11,16),(12,17),(17,16),(13,14),(14,15),(15,16),(13,18),(15,19),(16,20),(18,19),(19,20),(18,20)]
 G.add_edges_from(edges)
 p=nx.shortest_path(G)
 #nx.draw(G)
-#plt.savefig('G-scale-topology.png', bbox_inches='tight')
-
+#plt.savefig('esnet-topology.png', bbox_inches='tight')
 #create a dictionary that includes paths for all src,dst pairs
 p_len=len(p)
 paths=dict() #dictionary for the paths based on (source,dst) tuple
@@ -43,22 +42,22 @@ for e in edges:
     links.append(e)
 
 #this is to check which link is mostly used by the default route
-#temp_list = []
-#for key in paths:
-#    temp_list.append(paths[key])
-#flat_list = [item for sublist in temp_list for item in sublist]
-#counter=collections.Counter(flat_list)
-#bin_name = []
-#for key in counter:
-#    bin_name.append(str(key))
-#y_pos = np.arange(len(bin_name))
-#plt.barh(y_pos,counter.values(),color='g')
-#plt.yticks(y_pos, bin_name)
-#plt.savefig('G-scale-default-route-link-usage.png', bbox_inches='tight')
-#for x in links:
-#    if x not in flat_list:
-#        print x
-
+temp_list = []
+for key in paths:
+    temp_list.append(paths[key])
+flat_list = [item for sublist in temp_list for item in sublist]
+counter=collections.Counter(flat_list)
+bin_name = []
+for key in counter:
+    bin_name.append(str(key))
+y_pos = np.arange(len(bin_name))
+plt.barh(y_pos,counter.values(),color='g')
+plt.yticks(y_pos, bin_name)
+plt.savefig('esnet-default-route-link-usage.png', bbox_inches='tight')
+for x in links:
+    if x not in flat_list:
+        print x
+'''
 C = 10000 # Mbps
 #epoch = int(sys.argv[1]) #100
 sim_time = 3600*24
@@ -95,8 +94,6 @@ for epoch in [1]:#, 5, 10]:
             s = local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'local' and int(ver) == 2:
             s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched = 'naive':
-            s = naive_sched.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         else:
             print "Invalid algorithm!!!"
             quit()
@@ -141,10 +138,9 @@ for epoch in [1]:#, 5, 10]:
     
     #save results    
     log_dir="/users/fha6np/simulator/9-7-code/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
-    if sched == 'naive':
-        log_dir="/users/fha6np/simulator/9-7-code/results-naive/"
-    file_name='new-arrival-G-scale-uniform-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
+    file_name='new-arrival-esnet-uniform-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
     np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
+'''
