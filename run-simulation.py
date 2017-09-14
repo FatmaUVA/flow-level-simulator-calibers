@@ -1,6 +1,9 @@
-# the input are: 1) average transfer size
-#                2) algorithm: global-sjf, global-ljf, local-sjf, local-ljf
+# the input are: 1) network: one-link, linear, esnet or G-scale
+#                2) sched: local or global or naive
+#                3) algorithm: sjf ljf
+#                4) version: 1 or 2
 
+import os
 import sys
 import numpy as np
 import networkx as nx
@@ -9,20 +12,33 @@ import global_sched_ver_1
 import global_sched_ver_2
 import local_sched_ver_1
 import local_sched_ver_2
-import local_sched_ver_3
 import naive_sched
 import matplotlib.pyplot as plt
 import collections
 
+sim_network = sys.argv[1]
 G=nx.Graph()
-nodes=range(1,13) #12 nodes
+if sim_network == "one-link":
+    nodes=range(1,3) #2 nodes
+    edges = [(1,2)]
+elif sim_network == "linear":
+    nodes=range(1,4) #3 nodes
+    edges=[(1,2),(2,3)]
+elif sim_network == "G-scale":
+    nodes=range(1,13) #12 nodes
+    edges=[(1,2),(1,3),(2,5),(3,4),(3,6),(4,5),(4,7),(4,8),(5,6),(6,7),(6,8),(7,11),(7,8),(8,10),(9,10),(9,11),(10,11),(10,12),(11,12)]
+elif sim_network == "esnet":
+    nodes=range(1,21) #20 nodes
+    edges = [(1,2),(1,3),(3,4),(3,5),(4,7),(2,5),(5,6),(6,7),(5,8),(7,9),(8,9),(8,11),(11,12),(9,12),(10,11),(10,13),(11,16),(12,17),(17,16),(13,14),(14,15),(15,16),(13,18),(15,19),(16,20),(18,19),(19,20),(18,20)]
+else:
+    print "Invalid network"
+    quit()
+
 G.add_nodes_from(nodes)
-edges=[(1,2),(1,3),(2,5),(3,4),(3,6),(4,5),(4,7),(4,8),(5,6),(6,7),(6,8),(7,11),(7,8),(8,10),(9,10),(9,11),(10,11),(10,12),(11,12)]
 G.add_edges_from(edges)
 p=nx.shortest_path(G)
 #nx.draw(G)
-#plt.savefig('G-scale-topology.png', bbox_inches='tight')
-
+#plt.savefig('esnet-topology.png', bbox_inches='tight')
 #create a dictionary that includes paths for all src,dst pairs
 p_len=len(p)
 paths=dict() #dictionary for the paths based on (source,dst) tuple
@@ -43,25 +59,7 @@ for e in edges:
     links.append((e[1],e[0])) #to consider bi directional links
     links.append(e)
 
-#this is to check which link is mostly used by the default route
-#temp_list = []
-#for key in paths:
-#    temp_list.append(paths[key])
-#flat_list = [item for sublist in temp_list for item in sublist]
-#counter=collections.Counter(flat_list)
-#bin_name = []
-#for key in counter:
-#    bin_name.append(str(key))
-#y_pos = np.arange(len(bin_name))
-#plt.barh(y_pos,counter.values(),color='g')
-#plt.yticks(y_pos, bin_name)
-#plt.savefig('G-scale-default-route-link-usage.png', bbox_inches='tight')
-#for x in links:
-#    if x not in flat_list:
-#        print x
-
 C = 10000 # Mbps
-#epoch = int(sys.argv[1]) #100
 sim_time = 3600*24
 
 #arrival_rate = [1,2,3,4,5,6,7,8,9,10]
@@ -69,11 +67,11 @@ arrival_rate = np.arange(0.1,4,0.15) #lambda, but np.random.exponentional needs 
 #arrival_rate = np.arange(2.15,3.35,0.15)
 arrival_rate = 1/arrival_rate
 td_lambda = 60*60 #1 hour
-#s_lambda = int(sys.argv[1]) #200 #500 Mbps average transfer rate
-s_lambda = [100,200,300,400,500]
-sched = sys.argv[1]
-algo = sys.argv[2]
-ver = sys.argv[3]
+s_lambda = 100 #200 #500 Mbps average transfer rate
+#s_lambda = [100,200,300,400,500]
+sched = sys.argv[2]
+algo = sys.argv[3]
+ver = sys.argv[4]
 print "sced",sched,"algo",algo,"ver",ver
 reject_ratio = []
 utilization = []
@@ -96,8 +94,6 @@ for epoch in [1]:#, 5, 10]:
             s = local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'local' and int(ver) == 2:
             s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'local' and int(ver) == 3:
-            s = local_sched_ver_3.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'naive':
             s = naive_sched.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         else:
@@ -116,11 +112,15 @@ for epoch in [1]:#, 5, 10]:
                 td = int(np.random.exponential(td_lambda))
 		while td < epoch: 
 		    td = int(np.random.exponential(td_lambda))
-                avg_rate = np.random.choice(s_lambda)
-                size = int((avg_rate * td) / 8) #unit MB
+                #avg_rate = np.random.choice(s_lambda)
+                avg_rate = np.random.exponential(s_lambda)
+                size = (avg_rate * td) / 8 #unit MB
 		#size = int((np.random.exponential(s_lambda) * td) / 8)  #unit MB
-		#while size < 1 or size*8/td > C:
-		#    size = int((np.random.exponential(s_lambda) * td) / 8)
+		while size < 1 or size*8/td > C:
+                    #print "size =",size,"size /,1 or > C"
+                    avg_rate = np.random.exponential(s_lambda)
+                    size = (avg_rate * td) / 8 #unit MB
+		    #size = int((np.random.exponential(s_lambda) * td) / 8)
                 src = np.random.choice(nodes)
                 dst = np.random.choice(nodes)
                 while dst == src:
@@ -143,10 +143,10 @@ for epoch in [1]:#, 5, 10]:
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject
     
     #save results    
-    log_dir="/users/fha6np/simulator/9-7-code/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
-    if sched == 'naive':
-        log_dir="/users/fha6np/simulator/9-7-code/results-naive/"
-    file_name='new-arrival-G-scale-uniform-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
+    log_dir="/users/fha6np/simulator/9-7-code/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
+    command = "mkdir -p "+log_dir
+    os.system(command)
+    file_name='new-arrival-'+sim_network+'-uniform-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
