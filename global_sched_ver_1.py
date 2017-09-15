@@ -27,7 +27,7 @@ class Scheduler:
 	self.no_request = 0
         self.t_now = -1 # current timeslot (epoch)
         self.flows = dict() #indexed by the flow_id
-        self.avg_utiliz = [] #for logging to keep track of link utilization
+        self.avg_utiliz = [] #for logging to keep track of link utilization    
         
 
     def pace(self,new_f,p):
@@ -267,7 +267,11 @@ class Scheduler:
         for i in self.topo.links:
             l = self.topo.Link_set[i]
             l.utilization(self.flows)
-            x = (self.sim_time/epoch) -1
-            avg_utiliz = []
-            if (self.t_now == x) :
-                self.avg_utiliz.append(np.mean(l.utiliz))
+#            x = (self.sim_time/epoch) -1
+#            if (self.t_now == x) :
+#                self.avg_utiliz.append(np.mean(l.utiliz))
+
+    def stop_simulation(self):
+        for i in self.topo.links:
+            l = self.topo.Link_set[i]
+            self.avg_utiliz.append(np.mean(l.utiliz))

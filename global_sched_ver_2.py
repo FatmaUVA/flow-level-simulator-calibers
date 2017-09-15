@@ -234,8 +234,12 @@ class Scheduler:
         for i in self.topo.links:
             l = self.topo.Link_set[i]
             l.utilization(self.flows)
-            x = (self.sim_time/epoch) -1
-            avg_utiliz = []
-            if (self.t_now == x) :
-                self.avg_utiliz.append(np.mean(l.utiliz))
+#            x = (self.sim_time/epoch) -1
+#            if (self.t_now == x) :
+#                self.avg_utiliz.append(np.mean(l.utiliz))
+
+    def stop_simulation(self):
+        for i in self.topo.links:
+            l = self.topo.Link_set[i]
+            self.avg_utiliz.append(np.mean(l.utiliz))
 
