@@ -35,6 +35,7 @@ class Scheduler:
     def pace(self,new_f,p):
         global epoch
         global C
+        self.pace_threshold = 100000
         count_f =0 # counter for the number of flows involved in pacing
         for i in p:
             l = self.topo.Link_set[i]

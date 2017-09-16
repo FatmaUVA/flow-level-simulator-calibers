@@ -1,4 +1,5 @@
-# based on slack on pace, but based on global on reshape
+# based on link by link SJF or LJF 
+#but based on global on reshape
 import time
 import random
 from math import *
@@ -21,7 +22,7 @@ class Scheduler:
         self.sim_time = sim_time
         self.algo = algo
         epoch = float(epochx)
-        self.pace_threshold = 100 # the maximum number of flow you can pace to accept new request
+        self.pace_threshold = 1000 # the maximum number of flow you can pace to accept new request
         self.success_count = 0
         self.reject_count = 0
 	self.no_request = 0
@@ -43,7 +44,14 @@ class Scheduler:
             for f in l.flows:
                 temp_flows.append(self.flows[f]) # we need the flow object to sort
             #sort by slack value
-            temp_flows.sort(key=lambda x: x.slack, reverse=True)
+            #temp_flows.sort(key=lambda x: x.slack, reverse=True)
+            #sort by SJF or LJF (if you want to favor SJF, then sort by LJF and vice-versa)
+            if self.algo == 'sjf':
+                temp_flows.sort(key=lambda x: x.remain_data, reverse=True)
+            elif self.algo == 'ljf':
+                temp_flows.sort(key=lambda x: x.remain_data, reverse=False)
+            else:
+                print "invalid algo"
             found_R = False
             #first before chacking the flows slack, check ressidual bw in the link, in case a flow was paced and now more bandwidth is available
             temp_sum = 0

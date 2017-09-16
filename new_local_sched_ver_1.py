@@ -36,6 +36,7 @@ class Scheduler:
     def pace(self,new_f,p):
         global epoch
         global C
+        self.pace_threshold = 100000
         count_f =0 # counter for the number of flows involved in pacing
         for i in p:
             l = self.topo.Link_set[i]
@@ -44,8 +45,13 @@ class Scheduler:
             involved_flows = [] # flows that will be paced down
             for f in l.flows:
                 temp_flows.append(self.flows[f]) # we need the flow object to sort
-            #sort by slack value
-            temp_flows.sort(key=lambda x: x.slack, reverse=True)
+            #sort by SJF or LJF (if you want to favor SJF, then sort by LJF and vice-versa)
+            if self.algo == 'sjf':
+                temp_flows.sort(key=lambda x: x.remain_data, reverse=True)
+            elif self.algo == 'ljf':
+                temp_flows.sort(key=lambda x: x.remain_data, reverse=False)
+            else:
+                print "invalid algo"
             found_R = False
             #first before chacking the flows slack, check ressidual bw in the link, in case a flow was paced and now more bandwidth is available
             temp_sum = 0

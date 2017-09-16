@@ -1,7 +1,8 @@
-# the input are: 1) network: one-link, linear, esnet or G-scale
+# the input are: 1) network: one-link, linear, esnet or G-scale large
 #                2) sched: local or global or naive
 #                3) algorithm: sjf ljf
 #                4) version: 1 or 2
+#                5) avg-rate: in Mbps
 
 import os
 import sys
@@ -9,8 +10,11 @@ import numpy as np
 import networkx as nx
 import core
 import global_sched_ver_1
+import new_global_sched_ver_1
+import global_sched_ver_1
 import global_sched_ver_2
 import local_sched_ver_1
+import new_local_sched_ver_1
 import local_sched_ver_2
 import naive_sched
 import matplotlib.pyplot as plt
@@ -21,29 +25,43 @@ G=nx.Graph()
 if sim_network == "one-link":
     nodes=range(1,3) #2 nodes
     edges = [(1,2)]
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
 elif sim_network == "linear":
-    nodes=range(1,4) #3 nodes
-    edges=[(1,2),(2,3)]
+    nodes=range(1,7) #6 nodes
+    edges=[(1,2),(2,3),(3,4),(4,5),(5,6)]
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
 elif sim_network == "G-scale":
     nodes=range(1,13) #12 nodes
     edges=[(1,2),(1,3),(2,5),(3,4),(3,6),(4,5),(4,7),(4,8),(5,6),(6,7),(6,8),(7,11),(7,8),(8,10),(9,10),(9,11),(10,11),(10,12),(11,12)]
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
 elif sim_network == "esnet":
     nodes=range(1,21) #20 nodes
     edges = [(1,2),(1,3),(3,4),(3,5),(4,7),(2,5),(5,6),(6,7),(5,8),(7,9),(8,9),(8,11),(11,12),(9,12),(10,11),(10,13),(11,16),(12,17),(17,16),(13,14),(14,15),(15,16),(13,18),(15,19),(16,20),(18,19),(19,20),(18,20)]
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+elif sim_network == "large":
+    G = nx.fast_gnp_random_graph(40, 0.15, seed=5, directed=False)
+    edges = nx.edges(G)
+    nodes = nx.nodes(G)
 else:
     print "Invalid network"
     quit()
 
-G.add_nodes_from(nodes)
-G.add_edges_from(edges)
 p=nx.shortest_path(G)
 #nx.draw(G)
 #plt.savefig('esnet-topology.png', bbox_inches='tight')
 #create a dictionary that includes paths for all src,dst pairs
 p_len=len(p)
 paths=dict() #dictionary for the paths based on (source,dst) tuple
+index_range = xrange(1,p_len+1)
+if sim_network == "large":
+    index_range = xrange(0,p_len)
 for i in p:
-    for j in xrange(1,p_len+1):
+    for j in index_range:
+#    for j in xrange(1,p_len+1):
         if i != j:
             temp=p[i][j]
             z=len(p[i][j])
@@ -59,26 +77,43 @@ for e in edges:
     links.append((e[1],e[0])) #to consider bi directional links
     links.append(e)
 
+#this is to check which link is mostly used by the default route
+#temp_list = []
+#for key in paths:
+#    temp_list.append(paths[key])
+#flat_list = [item for sublist in temp_list for item in sublist]
+#counter=collections.Counter(flat_list)
+#bin_name = []
+#for key in counter:
+#    bin_name.append(str(key))
+#y_pos = np.arange(len(bin_name))
+#plt.barh(y_pos,counter.values(),color='g')
+#plt.yticks(y_pos, bin_name)
+#plt.savefig(sim_network+'e-default-route-link-usage.png', bbox_inches='tight')
+#for x in links:
+#    if x not in flat_list:
+#        print x
+
 C = 10000 # Mbps
 sim_time = 3600*24
 
-arrival_rate = [19,15,11,9,7,5,3,1,0.6,0.5]
-#arrival_rate = [1,2,3,4,5,6,7,8,9,10]
+#arrival_rate = [19,15,11,9,7,5,3,1,0.6,0.5,]
+arrival_rate = np.arange(0.05,1.6,0.1)
+#arrival_rate = np.arange(20,00,-1.5)
 #arrival_rate = np.arange(0.1,4,0.15) #lambda, but np.random.exponentional needs (1/lambda)
 #arrival_rate = np.arange(2.15,3.35,0.15)
 #arrival_rate = 1/arrival_rate
 td_lambda = 60*60 #1 hour
-s_lambda = 100 #200 #500 Mbps average transfer rate
+s_lambda = sys.argv[5] #200 #500 Mbps average transfer rate
 #s_lambda = [100,200,300,400,500]
 sched = sys.argv[2]
 algo = sys.argv[3]
 ver = sys.argv[4]
-print "sced",sched,"algo",algo,"ver",ver
 reject_ratio = []
 utilization = []
 np.random.seed(3)
 
-for epoch in [1]:#, 5, 10]:
+for epoch in [10*60]:#, 5, 10]:
     temp_utilization = []
     temp_reject = []
     for arriv_rate in arrival_rate:
@@ -89,12 +124,16 @@ for epoch in [1]:#, 5, 10]:
 
         if sched == 'global' and ver == '1':
             s = global_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
+        elif sched == 'new-global' and ver == '1':
+            s = new_global_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'global' and int(ver) == 2:
             s = global_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'local' and int(ver) == 1:
             s = local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'local' and int(ver) == 2:
-            s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
+        elif sched == 'new-local' and int(ver) == 1:
+            s = new_local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
+#        elif sched == 'local' and int(ver) == 2:
+#            s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'naive':
             s = naive_sched.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         else:
@@ -147,11 +186,13 @@ for epoch in [1]:#, 5, 10]:
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject
     
     #save results    
-    log_dir="/users/fha6np/simulator/9-7-code/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
+    log_dir="/users/fha6np/simulator/9-7-code/9-15-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
     command = "mkdir -p "+log_dir
     os.system(command)
-    file_name='new-arrival-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
+    file_name='new-arrival2-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
     np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
+
+
