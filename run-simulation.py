@@ -98,8 +98,8 @@ C = 10000 # Mbps
 sim_time = 3600*24
 
 #arrival_rate = [19,15,11,9,7,5,3,1,0.6,0.5,]
-arrival_rate = np.arange(0.05,1.6,0.1)
-#arrival_rate = np.arange(20,00,-1.5)
+#arrival_rate = np.arange(0.05,1.6,0.1)
+arrival_rate = np.arange(20,00,-1.5)
 #arrival_rate = np.arange(0.1,4,0.15) #lambda, but np.random.exponentional needs (1/lambda)
 #arrival_rate = np.arange(2.15,3.35,0.15)
 #arrival_rate = 1/arrival_rate
@@ -113,7 +113,7 @@ reject_ratio = []
 utilization = []
 np.random.seed(3)
 
-for epoch in [10*60]:#, 5, 10]:
+for epoch in [1]:#, 5, 10]:
     temp_utilization = []
     temp_reject = []
     for arriv_rate in arrival_rate:
@@ -140,6 +140,7 @@ for epoch in [10*60]:#, 5, 10]:
             print "Invalid algorithm!!!"
             quit()
         total_num_flows = 30000 #stop simulation when flows = 10K
+        sec_count = 0 #this is used to keep track of seconds in simulation to log utilization every second instead of /epoch
         epochs = sim_time/epoch
         while total_num_flows > 0:
 #        for i in range(epochs):
@@ -169,6 +170,10 @@ for epoch in [10*60]:#, 5, 10]:
                 req = core.Request(src,dst,size,0,td)
                 requests.append(req)
                 total_num_flows = total_num_flows - 1
+                if absolute_sum >= sec_count+1 and epoch != 1: #to log utilization every 1 sec
+                    sec_count = sec_count + 1
+                    #if log == True:
+                    s.log_link_utilization()
 		inter_arrival = np.random.exponential(arriv_rate)
 		absolute_sum = absolute_sum + inter_arrival
             s.sched(requests)
@@ -189,7 +194,7 @@ for epoch in [10*60]:#, 5, 10]:
     log_dir="/users/fha6np/simulator/9-7-code/9-15-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
     command = "mkdir -p "+log_dir
     os.system(command)
-    file_name='new-arrival2-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
+    file_name='new-arrival-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
