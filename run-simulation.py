@@ -98,11 +98,11 @@ C = 10000 # Mbps
 sim_time = 3600*24
 
 #arrival_rate = [19,15,11,9,7,5,3,1,0.6,0.5,]
-#arrival_rate = np.arange(0.05,1.6,0.1)
-arrival_rate = np.arange(20,00,-1.5)
+arrival_rate = np.arange(0.05,1.6,0.1)
+#arrival_rate = np.arange(20,00,-1.5)
 #arrival_rate = np.arange(0.1,4,0.15) #lambda, but np.random.exponentional needs (1/lambda)
 #arrival_rate = np.arange(2.15,3.35,0.15)
-#arrival_rate = 1/arrival_rate
+arrival_rate = 1/arrival_rate
 td_lambda = 60*60 #1 hour
 s_lambda = sys.argv[5] #200 #500 Mbps average transfer rate
 #s_lambda = [100,200,300,400,500]
@@ -170,10 +170,11 @@ for epoch in [1]:#, 5, 10]:
                 req = core.Request(src,dst,size,0,td)
                 requests.append(req)
                 total_num_flows = total_num_flows - 1
-                if absolute_sum >= sec_count+1 and epoch != 1: #to log utilization every 1 sec
-                    sec_count = sec_count + 1
+#                if absolute_sum >= sec_count+1 and epoch != 1: #to log utilization every 1 sec
                     #if log == True:
-                    s.log_link_utilization()
+#                    s.log_link_utilization()
+#                    s.delete_completed_flows(sec_count)
+#                    sec_count = sec_count + 1
 		inter_arrival = np.random.exponential(arriv_rate)
 		absolute_sum = absolute_sum + inter_arrival
             s.sched(requests)
@@ -186,6 +187,7 @@ for epoch in [1]:#, 5, 10]:
             temp_reject.append(float(s.reject_count)/tot_req)
         s.stop_simulation() #to log the the utilization
         temp_utilization.append(np.mean(s.avg_utiliz))
+        print "sec_count", sec_count
         
         print "link utilization ",np.mean(s.avg_utiliz)
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject

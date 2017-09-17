@@ -131,7 +131,9 @@ class Scheduler:
 	    #if self.debug == True:
 	   #     print " flow ",f.flow_id," revert changes "
 
-    def update_current_flows(self):
+
+#    def update_current_flows(self):
+    def delete_completed_flows(self):
         global epoch
         paths_involved = []
         current_flows = dict() #need to make a copy to delete
@@ -151,7 +153,10 @@ class Scheduler:
                 current_flows[f] = self.flows[f]
                 current_flows[f].update(self.t_now)
         self.flows = current_flows #current_flow does not include the finished flows
-        
+        return paths_involved
+    
+
+    def reshape(self,paths_involved):        
         #Find the disjoint set of impacted links
         involved_links = []
         involved_flows = []
@@ -207,12 +212,15 @@ class Scheduler:
         self.t_now = self.t_now + 1
         if self.debug == True:
             print "\nt_now = ", self.t_now
+        
+        #remove finished flows and update current flow status
+        paths_involved = self.delete_completed_flows()
 
         if self.log == True:
             self.log_link_utilization()
 
-        #remove finished flows and update current flow status
-        self.update_current_flows()
+        #self.update_current_flows(paths_involved)
+        self.reshape(paths_involved)
 
         if self.debug == True:
 	    for f in self.flows:
