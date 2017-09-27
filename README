@@ -1,0 +1,38 @@
+
+Fatma
+
+9/27/2017
+
+All scheduler log utilization every epoch (which is inaccurate), except the new schedulers: new_global_sched_ver_1.py and new_local_sched_ver_1.py
+
+Beside the new schedulers, more debugging needed, for example in the new sched I changed the unit to bps and bits to avoid floating point operations problems, change te type, and I assigned max_no_shaped flow to 50K.
+
+** new_global_sched_ver_1.py and new_local_sched_ver_1.py
+- Those are the most recent and the one that been used for the paper
+Two operations the scheduler takes care of:
+1) new flow:
+- it Rmin is available without pacing other flows, then the sched give the new flow tha max availbale R in the path
+- else it calls pace() function, which will go to each link, sort the flows by SJF or LJF, then take the lack and assign it to the new flow until the new flow get Rmin. Then the sched moves to the next link in the path of the new flow.
+
+2) completed flow:
+When a flow is completed, the sched choose to do local or global reshape
+- global: finds all the links the completed flows span, then go each links and find all the flows spanning each link and add it to the involved_flows list. FInally, sort the involved flows by SJF or LJF and give it the maximum R it can get based on each flow path.
+- local: For each completed flow, find the links it span, then find the most-botlleneck link (MBL), which is the link with the a flow that have the maximum comletion time (te). Then only go to this link, find the flows spanning the MBL, and assign rate based on SJF or LJF.
+
+** local_sched_ver_1.py and global_sched_ver_1.py 
+The same as new_local, but in completed flow, it go through each link and distribute Rresid, not only the MBL.
+Both global and local: this sched, will not update the status of the network every second, but it updates it every epoch, so, link utilization will not be accurate when epoch is more than 1 sec.
+
+
+
+global: SJF or LJF both in pace and reshape
+local: MBL in both reshape and pace
+Note that in ver_2 link utilization is logged every epoch, hence it is not accurate when epoch is more than 1 sec
+
+** fixed_sched_ver_1.py
+Was not used for the paper, but it assign Rmin to each flow and never change the rate.
+Need more debugging
+
+** naive_sched.py
+new flow: Assign rate by taking bandwidth from the flow with the maximum slack
+completed flow: Give more bandwidth to the flow that has the lowest slack
