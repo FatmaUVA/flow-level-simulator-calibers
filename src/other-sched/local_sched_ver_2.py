@@ -1,10 +1,9 @@
-#based on slack on pace and for reshape
-# int the path of each finished flow, we are reshaping flows in one link which is the MBL
+#most bottleneck first in pace and reshape
 import time
 import random
 from math import *
 import numpy as np
-import operator
+import operator 
 from core import flow, Link, Topology, Request
 
 epoch = 100.0 #300.0 #1 #timeslot, periodic sceduling, unit seconds
@@ -38,100 +37,61 @@ class Scheduler:
         global C
         self.pace_threshold = 100000
         count_f =0 # counter for the number of flows involved in pacing
+        involved_flows = [] #involved flows considered for reshaping
+        involved_flows_id = []
+        # first for each link find if Rmin is avilable by taking the slack
         for i in p:
             l = self.topo.Link_set[i]
-            avail_rate = [] # at each link
-            temp_flows = [] # flows at each link
-            involved_flows = [] # flows that will be paced down
-            for f in l.flows:
-                temp_flows.append(self.flows[f]) # we need the flow object to sort
-            #sort by SJF or LJF (if you want to favor SJF, then sort by LJF and vice-versa)
-            if self.algo == 'sjf':
-                temp_flows.sort(key=lambda x: x.remain_data, reverse=True)
-            elif self.algo == 'ljf':
-                temp_flows.sort(key=lambda x: x.remain_data, reverse=False)
+            sum_slack = 0
+            if len(l.flows) == 0: # if no flows in the link
+                sum_slack = C
             else:
-                print "invalid algo"
-            found_R = False
-            #first before chacking the flows slack, check ressidual bw in the link, in case a flow was paced and now more bandwidth is available
-            temp_sum = 0
-            for f in temp_flows:
-                temp_sum = temp_sum + self.flows[f.flow_id].Ralloc
-            temp_Rresid = C - temp_sum
-            if temp_Rresid < 0: #this is due to floating point rounding
-                temp_Rresid = 0
+                for f in l.flows: #f holds only the flow id
+                    sum_slack = sum_slack + self.flows[f].slack
+                    if f not in involved_flows_id:
+                        involved_flows_id.append(f)
+                        involved_flows.append(self.flows[f])
+            if sum_slack < new_f.Rmin: #no enough rate to reach its deadline
+                self.reject_count = self.reject_count + 1
+                if self.debug == True:
+                    print "Reject, no available bandwidth in link ",l.link_id," even with pacing"
+                return 0
 
-            if new_f.Rmin <= temp_Rresid:
-                # no need to pace othe flows
-                avail_rate.append(temp_Rresid)
-                found_R = True
-            else:
-                temp_sum = 0
-                for f in temp_flows:
-                    count_f = count_f + 1
-                    if count_f <= self.pace_threshold:
-                        involved_flows.append(self.flows[f.flow_id]) # keep the flow original info
-                        temp_sum = temp_sum + self.flows[f.flow_id].slack
-                        if self.debug == True:
-                            print "before pacing: flow :",f,"Ralloc and  slack = ",self.flows[f.flow_id].Ralloc," ", self.flows[f.flow_id].slack," te ",self.flows[f.flow_id].te
-                        if temp_sum+temp_Rresid >= new_f.Rmin:
-                            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + ((temp_sum +temp_Rresid) - new_f.Rmin)
-                            self.flows[f.flow_id].te = self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch)
-                            if self.flows[f.flow_id].te > self.flows[f.flow_id].td: #this is due to floating point op I'll have a file explaining
-                                self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                            if  self.flows[f.flow_id].te == self.t_now:
-                                self.flows[f.flow_id].te = self.flows[f.flow_id].te + 1
-                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-                            if self.debug == True:
-                                print "after pacing: flow :",f.flow_id," Ralloc: ",self.flows[f.flow_id].Ralloc," te ",self.flows[f.flow_id].te
-                            avail_rate.append(new_f.Rmin)
-                            found_R = True
-                            break
-                        else:
-                            #update flow Ralloc te slack
-                            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
-                            self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
-                            if self.flows[f.flow_id].te > self.flows[f.flow_id].td: #this is due to floating point op
-                                self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                            if  self.flows[f.flow_id].te == int(self.t_now):
-                                self.flows[f.flow_id].te = self.flows[f.flow_id].te + 1
-                            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-                    else:
-                        if self.debug == True:
-                            print "Reject, cannot pace more than 100 flows"
-                        self.reject_count = self.reject_count + 1
-                        self.revert_flow_changes(involved_flows)
-                        return 0
-                if found_R == False:
-                    if self.debug == True:
-                        print "Reject, no available bandwidth in link ",l.link_id," even with pacing"
-                    self.reject_count = self.reject_count + 1
-                    self.revert_flow_changes(involved_flows)
-                    return 0
+        # Rresid available for the new flow across the entire path
+        if self.debug == True:
+            print "Success,Rmin is available, reshaping will be done"
 
-        self.success_count = self.success_count + 1
+        # Rmin found
+        # first give it the minimum then redistribute slack rate
         new_f.Ralloc = new_f.Rmin
-        new_f.te = int(self.t_now + ceil( ((new_f.size)/(new_f.Ralloc*1.0))/epoch))
-        if new_f.te > new_f.td: #this is due to floating point op
+        new_f.te = int(self.t_now + ceil( (new_f.size/(new_f.Ralloc*1))/epoch))
+        if new_f.te > new_f.td:
             new_f.te = new_f.td
-        if int(new_f.te) == int(self.t_now):
-            new_f.te = new_f.te + 1
         new_f.slack = new_f.Ralloc - new_f.Rmin
         self.flows[new_f.flow_id] = new_f
-        if self.debug == True:
-            print "Success, the flow was assigned rate of ", new_f.Ralloc," Rmin ",new_f.Rmin," te ",new_f.te
+        self.success_count = self.success_count + 1
+        involved_flows.append(new_f)
+        involved_flows_id.append(new_f.flow_id)
         #update links with the new flow
         for i in p:
             l = self.topo.Link_set[i]
-            l.flows.append(new_f.flow_id)		
-		 
+            l.flows.append(new_f.flow_id)
+
+        involved_links = [] #to find the most bottleneck link
+        for i in p: # go through each link (i holds link id)
+            l = self.topo.Link_set[i]
+            involved_links.append(i)
+
+        self.reshape(involved_links,involved_flows)
+
+
     def revert_flow_changes(self,involved_flows):
         for f in involved_flows:
             self.flows[f.flow_id] = f 
 	    #if self.debug == True:
 	   #     print " flow ",f.flow_id," revert changes "
 
-    def delete_completed_flows(self):
+    def update_current_flows(self):
         global epoch
         paths_involved = []
         current_flows = dict() #need to make a copy to delete
@@ -151,40 +111,52 @@ class Scheduler:
                 current_flows[f] = self.flows[f]
                 current_flows[f].update(self.t_now)
         self.flows = current_flows #current_flow does not include the finished flows
-        return paths_involved
-
-    #when a flow finishes or a new flow comes, how to redistribute the slack capacity, is what this function do
-    def reshape(self,paths_involved):
-        global C
+        
+        #Find the disjoint set of impacted links
         involved_links = []
+        involved_flows = []
+        involved_flows_id = []
         for p in paths_involved:
             for i in p:
-                involved_links.append(i)
-            #reshape for this path
-            #sort links by most-bottleneck link
-            max_te_link = dict()
-            for i in involved_links: # go through each link (i holds link id)
                 l = self.topo.Link_set[i]
-                max_te = 0
-                for j in l.flows:
-                    if self.flows[j].te > max_te:
-                        max_te = self.flows[j].te
-                max_te_link[l.link_id] = max_te
+                if i not in involved_links:
+                    involved_links.append(i)
+                #find the disjoint set of flows in the impacted paths
+                for f in l.flows:
+                    if f not in involved_flows_id:
+                        involved_flows.append(self.flows[f])
+                        involved_flows_id.append(f)
+        self.reshape(involved_links,involved_flows)
 
-            # start with link that will stay busy the longest
-            # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
-            sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
-            # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
 
-            #assign Rmin to all flows in the MBL
-            l_id = sorted_te[0][0]
-            l = self.topo.Link_set[l_id] # read the MBL ID, the first link in the list is MBL
+    #when a flow finishes or a new flow comes, how to redistribute the slack capacity, is what this function do
+    def reshape(self,involved_links,involved_flows):
+        global C
+        
+        #assign Rmin to all involved flows
+        for f in involved_flows:
+            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
+
+        #sort links by most-bottleneck link
+        max_te_link = dict()
+        for i in involved_links: # go through each link (i holds link id)
+            l = self.topo.Link_set[i]
+            max_te = 0
+            for j in l.flows:
+                if self.flows[j].te > max_te:
+                    max_te = self.flows[j].te
+            max_te_link[l.link_id] = max_te
+
+        # now distribute residual rate
+        # start with link that will stay busy the longest
+        # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
+        sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
+        # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
+        for j in sorted_te:
+            l = self.topo.Link_set[j[0]] # j[count][0] return the the link_id which we need to ge the other link info
             involved_flows = []
             for f in l.flows:
-                self.flows[f].Ralloc = self.flows[f].Rmin
                 involved_flows.append(self.flows[f])
-
-            # now distribute residual rate by only looking at the most-bottleneck link (which is l)
             #sort by remain_data
             if self.algo == 'sjf':
                 involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
@@ -214,7 +186,7 @@ class Scheduler:
                     self.flows[f.flow_id].te = self.flows[f.flow_id].td
                 if self.debug == True:
                     print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
-
+        
     def sched(self,requests):
         global epoch
 	global C
@@ -222,14 +194,11 @@ class Scheduler:
         if self.debug == True:
             print "\nt_now = ", self.t_now
 
-        #remove finished flows and update current flow status
-        paths_involved = self.delete_completed_flows()
-
         if self.log == True:
             self.log_link_utilization()
 
-        #self.update_current_flows(paths_involved)
-        self.reshape(paths_involved)
+        #remove finished flows and update current flow status
+        self.update_current_flows()
 
         if self.debug == True:
 	    for f in self.flows:
@@ -299,4 +268,3 @@ class Scheduler:
         for i in self.topo.links:
             l = self.topo.Link_set[i]
             self.avg_utiliz.append(np.mean(l.utiliz))
-

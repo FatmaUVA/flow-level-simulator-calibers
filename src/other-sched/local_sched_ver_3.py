@@ -1,4 +1,5 @@
 #most bottleneck first in pace and reshape
+#in this version, after each reshaping for a link, the links re resorted to find the new MBL , because if we don't re sort, the second link the sorted list is not necesserilly the second MBL now, since we reassign Ralloc for flows in the first MBL
 import time
 import random
 from math import *
@@ -136,55 +137,59 @@ class Scheduler:
         for f in involved_flows:
             self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin
 
-        #sort links by most-bottleneck link
-        max_te_link = dict()
-        for i in involved_links: # go through each link (i holds link id)
-            l = self.topo.Link_set[i]
-            max_te = 0
-            for j in l.flows:
-                if self.flows[j].te > max_te:
-                    max_te = self.flows[j].te
-            max_te_link[l.link_id] = max_te
+        count = len(involved_links)
+        while count > 0:
+            count = count - 1
+            #sort links by most-bottleneck link
+            max_te_link = dict()
+            for i in involved_links: # go through each link (i holds link id)
+                l = self.topo.Link_set[i]
+                max_te = 0
+                for j in l.flows:
+                    if self.flows[j].te > max_te:
+                        max_te = self.flows[j].te
+                max_te_link[l.link_id] = max_te
+            # now distribute residual rate
+            # start with link that will stay busy the longest
+            # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
+            sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
+            # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
+            for j in sorted_te:
+                l = self.topo.Link_set[j[0]] # j[count][0] return the the link_id which we need to ge the other link info
+                involved_links.remove(j[0]) # sothat when we re sort, we don't have the link
+                involved_flows = []
+                for f in l.flows:
+                    involved_flows.append(self.flows[f])
+                #sort by remain_data
+                if self.algo == 'sjf':
+                    involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
+                elif self.algo == 'ljf':
+                    involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
+                else:
+                    print "invalid algo"
 
-        # now distribute residual rate
-        # start with link that will stay busy the longest
-        # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
-        sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
-        # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
-        for j in sorted_te:
-            l = self.topo.Link_set[j[0]] # j[count][0] return the the link_id which we need to ge the other link info
-            involved_flows = []
-            for f in l.flows:
-                involved_flows.append(self.flows[f])
-            #sort by remain_data
-            if self.algo == 'sjf':
-                involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
-            elif self.algo == 'ljf':
-                involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
-            else:
-                print "invalid algo"
-
-            for f in involved_flows:
-                p = self.topo.paths[(f.src,f.dst)]
-                path_Rresid = []
-                for i in p:
-                    l = self.topo.Link_set[i]
-                    temp_sum = 0
-                    for x in l.flows:
-                        temp_sum = temp_sum + self.flows[x].Ralloc
-                    l_slack = C - temp_sum # link slack capacity that we want to redistribute
-                    if l_slack <= 0:
-                        path_Rresid.append(0)
-                        break #no resid bandwidth in one of the links on the path so break
-                    path_Rresid.append(l_slack)
-                f_max_path_Rresid = min(path_Rresid)
-                self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
-                self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-                self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
-                if int(self.flows[f.flow_id].te) > int(self.flows[f.flow_id].td):
-                    self.flows[f.flow_id].te = self.flows[f.flow_id].td
-                if self.debug == True:
-                    print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
+                for f in involved_flows:
+                    p = self.topo.paths[(f.src,f.dst)]
+                    path_Rresid = []
+                    for i in p:
+                        l = self.topo.Link_set[i]
+                        temp_sum = 0
+                        for x in l.flows:
+                            temp_sum = temp_sum + self.flows[x].Ralloc
+                        l_slack = C - temp_sum # link slack capacity that we want to redistribute
+                        if l_slack <= 0:
+                            path_Rresid.append(0)
+                            break #no resid bandwidth in one of the links on the path so break
+                        path_Rresid.append(l_slack)
+                    f_max_path_Rresid = min(path_Rresid)
+                    self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
+                    self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
+                    self.flows[f.flow_id].te = int(self.t_now + ceil( (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0)) /epoch))
+                    if int(self.flows[f.flow_id].te) > int(self.flows[f.flow_id].td):
+                        self.flows[f.flow_id].te = self.flows[f.flow_id].td
+                    if self.debug == True:
+                        print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
+                    break #only read the first item in the list , then break and resort
         
     def sched(self,requests):
         global epoch
@@ -259,11 +264,7 @@ class Scheduler:
         for i in self.topo.links:
             l = self.topo.Link_set[i]
             l.utilization(self.flows)
-#            x = (self.sim_time/epoch) -1
-#            if (self.t_now == x) :
-#                self.avg_utiliz.append(np.mean(l.utiliz))
-
-    def stop_simulation(self):
-        for i in self.topo.links:
-            l = self.topo.Link_set[i]
-            self.avg_utiliz.append(np.mean(l.utiliz))
+            x = (self.sim_time/epoch) -1
+            avg_utiliz = []
+            if (self.t_now == x) :
+                self.avg_utiliz.append(np.mean(l.utiliz))

@@ -7,3 +7,7 @@ local_sched_ver_1.py
 In pace based on slack
 local_sched_ver_2.py
 In pace based on MBLF then flows
+
+
+local_sched_ver_3.py
+after each reshaping for one link, the list is resorted again after removing the link

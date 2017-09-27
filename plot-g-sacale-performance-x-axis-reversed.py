@@ -34,6 +34,14 @@ perf2_ljf = (1-rej2)*util2
 perf2_mblf_ljf = (1-rej3)*util3
 perf2_mblf_sjf = (1-rej4)*util4
 
+#rej1 = np.round(rej1,3)
+#rej2 = np.round(rej2,3)
+#rej3 = np.round(rej3,3)
+#rej4 = np.round(rej4,3)
+#util1 = np.round(util1,3)
+#util2 = np.round(util2,3)
+#util3 = np.round(util3,3)
+#util4 = np.round(util4,3)
 perf3_sjf = (1-rej1)/(1-util1)
 perf3_ljf = (1-rej2)/(1-util2)
 perf3_mblf_ljf = (1-rej3)/(1-util3)
@@ -42,7 +50,7 @@ perf3_mblf_sjf = (1-rej4)/(1-util4)
 arrival_rate = 1/ arrival_rate
 print"arrival rate", arrival_rate
 
-log_dir="/users/fha6np/simulator/plots-8-31/"
+log_dir="/users/fha6np/simulator/9-7-code/plots-9-7/"
 #fig, ax1 = plt.subplots()
 plt.figure(0)
 plt.plot(arrival_rate,perf3_sjf,'bo-',label = 'SJF')
@@ -56,7 +64,7 @@ axes = plt.gca()
 #axes.set_ylim([0,1])
 plt.title('new-arrival-G-scale-uniform-avg-transfer-epoch-1-sim-time-86400-td-3600')
 plt.legend(title = "Algorithm:",loc='upper left')
-file_name="ver-"+str(ver)"-Performance-new-arrival-G-scale-uniform-avg-transfer-epoch-1-sim-time-86400-td-3600-range"
+file_name="ver-"+str(ver)+"-Performance-new-arrival-G-scale-uniform-avg-transfer-epoch-1-sim-time-86400-td-3600-range"
 plt.savefig(log_dir+file_name+'.png', bbox_inches='tight')
 
 plt.figure(1)
@@ -73,7 +81,7 @@ plt.xlabel('Mean request arrival rate /epoch')
 axes = plt.gca()
 axes.set_ylim([0,1])
 plt.legend(title = "Algorithm:",loc='lower right')
-file_name="ver-"+str(ver)"-reject-utilization-new-arrival-G-scale-uniform-avg-transfer-epoch-1-sim-time-86400-td-3600-range"
+file_name="ver-"+str(ver)+"-reject-utilization-new-arrival-G-scale-uniform-avg-transfer-epoch-1-sim-time-86400-td-3600-range"
 plt.savefig(log_dir+file_name+'.png', bbox_inches='tight')
 
 # Shrink current axis by 30%

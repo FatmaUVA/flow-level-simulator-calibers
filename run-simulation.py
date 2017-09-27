@@ -17,6 +17,7 @@ import local_sched_ver_1
 import new_local_sched_ver_1
 import local_sched_ver_2
 import naive_sched
+import fixed_sched_ver_1
 import matplotlib.pyplot as plt
 import collections
 
@@ -28,8 +29,11 @@ if sim_network == "one-link":
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 elif sim_network == "linear":
-    nodes=range(1,7) #6 nodes
-    edges=[(1,2),(2,3),(3,4),(4,5),(5,6)]
+    nodes=range(1,21) #6 nodes
+    edges=[] #[(1,2),(2,3),(3,4),(4,5),(5,6)]
+    for i in range(1,len(nodes)):
+        edges.append((i,i+1))
+    print edges
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 elif sim_network == "G-scale":
@@ -72,27 +76,17 @@ for i in p:
 
             paths[(temp[0],temp[z-1])]=sub_path
 
+avg_paths = []
+for key, value in paths.iteritems():
+    avg_paths.append(len(value))
+avg_paths = np.asarray(avg_paths)
+print "average length of a path is ",np.mean(avg_paths),"sd",np.std(avg_paths)
+
 links=[]
 for e in edges:
     links.append((e[1],e[0])) #to consider bi directional links
     links.append(e)
 
-#this is to check which link is mostly used by the default route
-#temp_list = []
-#for key in paths:
-#    temp_list.append(paths[key])
-#flat_list = [item for sublist in temp_list for item in sublist]
-#counter=collections.Counter(flat_list)
-#bin_name = []
-#for key in counter:
-#    bin_name.append(str(key))
-#y_pos = np.arange(len(bin_name))
-#plt.barh(y_pos,counter.values(),color='g')
-#plt.yticks(y_pos, bin_name)
-#plt.savefig(sim_network+'e-default-route-link-usage.png', bbox_inches='tight')
-#for x in links:
-#    if x not in flat_list:
-#        print x
 
 C = 10000 # Mbps
 sim_time = 3600*24
@@ -113,7 +107,7 @@ reject_ratio = []
 utilization = []
 np.random.seed(3)
 
-for epoch in [1]:#, 5, 10]:
+for epoch in [20*60]:#, 5, 10]:
     temp_utilization = []
     temp_reject = []
     for arriv_rate in arrival_rate:
@@ -134,35 +128,33 @@ for epoch in [1]:#, 5, 10]:
             s = new_local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
 #        elif sched == 'local' and int(ver) == 2:
 #            s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'naive':
-            s = naive_sched.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
+        elif sched == 'fixed':
+            s = fixed_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         else:
             print "Invalid algorithm!!!"
             quit()
         total_num_flows = 30000 #stop simulation when flows = 10K
         sec_count = 0 #this is used to keep track of seconds in simulation to log utilization every second instead of /epoch
         epochs = sim_time/epoch
+        requests = []
+        epoch_index = epoch
+        absolute_sum = 0
         while total_num_flows > 0:
-#        for i in range(epochs):
-            requests = []
-	    absolute_t = t_now * epoch
+            s.delete_completed_flows()
+            s.log_link_utilization()
+            
 	    inter_arrival = np.random.exponential(arriv_rate)
-	    absolute_sum = absolute_t
 	    absolute_sum = absolute_sum + inter_arrival
-	    while absolute_sum < (t_now+1)*epoch:
+	    if absolute_sum < epoch_index: #(t_now+1)*epoch:
                 tot_req = tot_req + 1
                 td = int(np.random.exponential(td_lambda))
 		while td < epoch: 
 		    td = int(np.random.exponential(td_lambda))
-                #avg_rate = np.random.choice(s_lambda)
                 avg_rate = np.random.exponential(s_lambda)
                 size = (avg_rate * td) / 8 #unit MB
-		#size = int((np.random.exponential(s_lambda) * td) / 8)  #unit MB
 		while size < 1 or size*8/td > C:
-                    #print "size =",size,"size /,1 or > C"
                     avg_rate = np.random.exponential(s_lambda)
                     size = (avg_rate * td) / 8 #unit MB
-		    #size = int((np.random.exponential(s_lambda) * td) / 8)
                 src = np.random.choice(nodes)
                 dst = np.random.choice(nodes)
                 while dst == src:
@@ -170,15 +162,15 @@ for epoch in [1]:#, 5, 10]:
                 req = core.Request(src,dst,size,0,td)
                 requests.append(req)
                 total_num_flows = total_num_flows - 1
-#                if absolute_sum >= sec_count+1 and epoch != 1: #to log utilization every 1 sec
-                    #if log == True:
-#                    s.log_link_utilization()
-#                    s.delete_completed_flows(sec_count)
-#                    sec_count = sec_count + 1
-		inter_arrival = np.random.exponential(arriv_rate)
-		absolute_sum = absolute_sum + inter_arrival
-            s.sched(requests)
-	    t_now = t_now + 1
+            else:
+                s.sched(requests)
+                requests = [] # reset request list
+                absolute_sum = epoch_index
+                epoch_index = epoch_index +  epoch
+	    inter_arrival = np.random.exponential(arriv_rate)
+	    absolute_sum = absolute_sum + inter_arrival
+            t_now = t_now + 1
+        #end of while
         if tot_req == 0:
 	    reject = 0
             temp_reject.append(0)
@@ -193,7 +185,7 @@ for epoch in [1]:#, 5, 10]:
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject
     
     #save results    
-    log_dir="/users/fha6np/simulator/9-7-code/9-15-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
+    log_dir="/users/fha6np/simulator/9-7-code/9-17-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
     command = "mkdir -p "+log_dir
     os.system(command)
     file_name='new-arrival-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
@@ -201,5 +193,4 @@ for epoch in [1]:#, 5, 10]:
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
     np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
-
 

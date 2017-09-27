@@ -34,6 +34,7 @@ class Scheduler:
 
         global epoch
         global C
+        self.pace_threshold = 100000
         count_f =0 # counter for the number of flows involved in pacing
         involved_flows = [] #involved flows considered for reshaping
         involved_flows_id = []
