@@ -11,3 +11,10 @@ In pace based on MBLF then flows
 
 local_sched_ver_3.py
 after each reshaping for one link, the list is resorted again after removing the link
+
+
+new_local_sched_ver_1_orginal.py
+Is the original sched used for INDIS paper in this sceduler, for each completed flow, find involved flows in the botlleneck link, then redistribute bandwidth
+
+new_local_sched_ver_1.py
+used for FGCS, for all completed flows, find the bottleneck link, which is the link that has a flow with max tc. If multiple links have the same max tc, consider the bottleneck link as the link which has the maximimu average tc of all flows without the max tc.
