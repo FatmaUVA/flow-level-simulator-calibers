@@ -1,0 +1,23 @@
+
+1) orgiginal:
+for each completed flow
+find MBL
+consider only flows in MBL
+
+
+2) new_local_sched_ver_1_rehsape_based_on_te.py
+find all involved flows
+find flow with max te
+find path of max te flow
+assing more bw to max tc flow
+
+3) newnew_local_sched_ver_1.py
+find all involved flows form all involved paths (use set operations to lower complexity to O(F)
+find MBL by finding flow with max te,
+if flow with max te traverse many links
+then MBL is the link with max te and highest avg te (without max)
+consider flows in MBL when destributing bandwidth
+
+have same complexity in worstt case with global,however in average
+if the average path size is 2 links, and pairs re uniformly distributed
+and arrival rate of xx request 
