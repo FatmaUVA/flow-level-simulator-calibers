@@ -1,6 +1,5 @@
 # new flow: in pace, for each link sort flows by SJF or LJF, then take salck value(s) and assign it ot he new flow until it get Rmin 
 # completed flow(s): in reshape, for each completed flow, find the MBL, then only consider the flows spanning MBL when distributing Rresid
-# for completed flows: in reshape find all involved flows, find the flow with max tc (only optimize locally), go through the flow path and distribute bandwidth for flows in that max_tc flow traverse
 
 import time
 import random
@@ -159,77 +158,64 @@ class Scheduler:
 
 
     def reshape(self):
-        #Find the disjoint set of impacted links
-        involved_flows_id = []
+        global C
+        involved_links = []
         for p in self.paths_involved:
             for i in p:
+                involved_links.append(i)
+            #reshape for this path
+            #sort links by most-bottleneck link
+            max_te_link = dict()
+            for i in involved_links: # go through each link (i holds link id)
                 l = self.topo.Link_set[i]
-                #find the disjoint set of flows in the impacted paths
-                for f in l.flows:
-                    if f not in involved_flows_id:
-                        involved_flows_id.append(f)
-        max_te = 0
-        longest_flow_id = 0
-        for f in involved_flows_id:
-            if self.flows[f].te > max_te:
-                longest_flow_id = f
+                max_te = 0
+                for j in l.flows:
+                    if self.flows[j].te > max_te:
+                        max_te = self.flows[j].te
+                max_te_link[l.link_id] = max_te
 
-        #find the link with the highest avg tc
-        p = self.topo.paths[(self.flows[longest_flow_id].src,self.flows[longest_flow_id].dst)]
-        max_avg_te = 0
-        for i in p:
-            l = self.topo.Link_set[i]
-            temp_sum = 0
-            for x in l.flows:
-                if self.flows[x].flow_id == longest_flow_id:
-                    continue
-                else:
-                    temp_sum = temp_sum + self.flows[x].te
-            avg_te = (temp_sum*1.0) / len(l.flows)
-            if avg_te > max_avg_te:
-                MBL_id = l.link_id
+            # start with link that will stay busy the longest
+            # sort by te (we cannot sort a dictionary so sort the dict by te and add the sorted value to a list
+            sorted_te = sorted(max_te_link.items(), key=operator.itemgetter(1),reverse=True)
+            # sorted_te structure is as follows: [(link_id,max_te), (link_id,max_te)]
 
+            #assign Rmin to all flows in the MBL
+            l_id = sorted_te[0][0]
+            l = self.topo.Link_set[l_id] # read the MBL ID, the first link in the list is MBL
+            involved_flows = []
+            for f in l.flows:
+                self.flows[f].Ralloc = self.flows[f].Rmin
+                involved_flows.append(self.flows[f])
+           # now distribute residual rate by only looking at the most-bottleneck link (which is l)
+            #sort by remain_data
+            if self.algo == 'sjf':
+                involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
+            elif self.algo == 'ljf':
+                involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
+            else:
+                print "invalid algo"
 
-        #consider only flows in the bottleneck link
-        l = self.topo.Link_set[MBL_id] # read the MBL metadata
-        involved_flows = []
-        original_flows_data = [] #incase we need to revert back
-        for f in l.flows:
-            original_flows_data.append(self.flows[f])
-            self.flows[f].Ralloc = self.flows[f].Rmin
-            involved_flows.append(self.flows[f])
-       # now distribute residual rate by only looking at the most-bottleneck link (which is l)
-        #sort by remain_data
-        if self.algo == 'sjf':
-            involved_flows.sort(key=lambda x: x.remain_data, reverse=False)
-        elif self.algo == 'ljf':
-            involved_flows.sort(key=lambda x: x.remain_data, reverse=True)
-        else:
-            print "invalid algo"
-
-        for f in involved_flows:
-            p = self.topo.paths[(f.src,f.dst)]
-            path_Rresid = []
-            for i in p:
-                l = self.topo.Link_set[i]
-                temp_sum = 0
-                for x in l.flows:
-                    temp_sum = temp_sum + self.flows[x].Ralloc
-                l_slack = C - temp_sum # link slack capacity that we want to redistribute
-                if l_slack <= 0:
-                    path_Rresid.append(0)
-                    break #no resid bandwidth in one of the links on the path so break
-                path_Rresid.append(l_slack)
-            f_max_path_Rresid = min(path_Rresid)
-            self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
-            self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
-            self.flows[f.flow_id].te = self.t_now + (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0))
-            if self.flows[f.flow_id].te > self.flows[f.flow_id].td:
-                self.flows[f.flow_id].te = self.flows[f.flow_id].td
-            if self.debug == True:
-                print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
-
-
+            for f in involved_flows:
+                p = self.topo.paths[(f.src,f.dst)]
+                path_Rresid = []
+                for i in p:
+                    l = self.topo.Link_set[i]
+                    temp_sum = 0
+                    for x in l.flows:
+                        temp_sum = temp_sum + self.flows[x].Ralloc
+                    l_slack = C - temp_sum # link slack capacity that we want to redistribute
+                    if l_slack <= 0:
+                        path_Rresid.append(0)
+                        break #no resid bandwidth in one of the links on the path so break
+                    path_Rresid.append(l_slack)
+                f_max_path_Rresid = min(path_Rresid)
+                self.flows[f.flow_id].Ralloc = self.flows[f.flow_id].Rmin + f_max_path_Rresid
+                self.flows[f.flow_id].slack = self.flows[f.flow_id].Ralloc - self.flows[f.flow_id].Rmin
+                self.flows[f.flow_id].te = self.t_now + (self.flows[f.flow_id].remain_data/(self.flows[f.flow_id].Ralloc*1.0))
+                if self.flows[f.flow_id].te > self.flows[f.flow_id].td:
+                    self.flows[f.flow_id].te = self.flows[f.flow_id].td
+                if self.debug == True:
+                    print "flow",f.flow_id ,"reshaped. Ralloc = ",self.flows[f.flow_id].Ralloc," te = ",self.flows[f.flow_id].te
 
     def sched(self,requests):
         global epoch
