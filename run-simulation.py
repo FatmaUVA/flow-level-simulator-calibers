@@ -9,15 +9,9 @@ import sys
 import numpy as np
 import networkx as nx
 import core
-import global_sched_ver_1
 import new_global_sched_ver_1
-import global_sched_ver_1
-import global_sched_ver_2
-import local_sched_ver_1
 import new_local_sched_ver_1
-import local_sched_ver_2
-import naive_sched
-import fixed_sched_ver_1
+import tcp_sched
 import matplotlib.pyplot as plt
 import collections
 
@@ -107,33 +101,25 @@ reject_ratio = []
 utilization = []
 np.random.seed(3)
 
-for epoch in [20*60]:#, 5, 10]:
+for epoch in [1]:#20*60]:#, 5, 10]:
     temp_utilization = []
     temp_reject = []
-    for arriv_rate in arrival_rate:
+    for arriv_rate in arrival_rate: 
 	print "epoch",epoch," arrival_rate",arriv_rate
         tot_req = 0
 	t_now = 0 #keep track of slots
         topo = core.Topology(links,paths,C,epoch) #same topology class so it doesn't matter which file to use
 
-        if sched == 'global' and ver == '1':
-            s = global_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'new-global' and ver == '1':
+        if sched == 'new-global' and ver == '1':
             s = new_global_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'global' and int(ver) == 2:
-            s = global_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'local' and int(ver) == 1:
-            s = local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         elif sched == 'new-local' and int(ver) == 1:
             s = new_local_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-#        elif sched == 'local' and int(ver) == 2:
-#            s = local_sched_ver_2.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
-        elif sched == 'fixed':
-            s = fixed_sched_ver_1.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
+        elif sched == 'tcp':
+            s = tcp_sched.Scheduler(topo,sim_time,epoch,algo,log=True,debug=False)
         else:
             print "Invalid algorithm!!!"
             quit()
-        total_num_flows = 30000 #stop simulation when flows = 10K
+        total_num_flows = 30000 #fatma 30000 #stop simulation when flows = 30K
         sec_count = 0 #this is used to keep track of seconds in simulation to log utilization every second instead of /epoch
         epochs = sim_time/epoch
         requests = []
@@ -183,14 +169,18 @@ for epoch in [20*60]:#, 5, 10]:
         
         print "link utilization ",np.mean(s.avg_utiliz)
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject
+        missed_td_rate = float(s.missed_td/tot_req)
+        print "flow missed deadlines",s.missed_td
     
     #save results    
-    log_dir="/users/fha6np/simulator/9-7-code/9-17-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
+    log_dir="/users/fha6np/flow-level-simulator-calibers/FGCS-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
     command = "mkdir -p "+log_dir
     os.system(command)
     file_name='new-arrival-'+sim_network+'-avg-transfer-epoch-'+str(epoch)+'-sim-time-'+str(sim_time)+'-td-'+str(td_lambda)
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
-    np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
+    np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization,missed_td_rate)), header="arrival_rate,reject_ratio,utilization,missed_deadline_rate" ,delimiter=',')
+
+
 
