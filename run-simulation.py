@@ -86,7 +86,7 @@ C = 10000 # Mbps
 sim_time = 3600*24
 
 #arrival_rate = [19,15,11,9,7,5,3,1,0.6,0.5,]
-arrival_rate = np.arange(0.05,1.6,0.1)
+arrival_rate = np.array([0.05,0.1])#fatma np.arange(0.05,1.6,0.1)
 #arrival_rate = np.arange(20,00,-1.5)
 #arrival_rate = np.arange(0.1,4,0.15) #lambda, but np.random.exponentional needs (1/lambda)
 #arrival_rate = np.arange(2.15,3.35,0.15)
@@ -104,6 +104,7 @@ np.random.seed(3)
 for epoch in [1]:#20*60]:#, 5, 10]:
     temp_utilization = []
     temp_reject = []
+    temp_missed_td = []
     for arriv_rate in arrival_rate: 
 	print "epoch",epoch," arrival_rate",arriv_rate
         tot_req = 0
@@ -119,7 +120,7 @@ for epoch in [1]:#20*60]:#, 5, 10]:
         else:
             print "Invalid algorithm!!!"
             quit()
-        total_num_flows = 30000 #fatma 30000 #stop simulation when flows = 30K
+        total_num_flows =100# 30000 #fatma 30000 #stop simulation when flows = 30K
         sec_count = 0 #this is used to keep track of seconds in simulation to log utilization every second instead of /epoch
         epochs = sim_time/epoch
         requests = []
@@ -165,12 +166,12 @@ for epoch in [1]:#20*60]:#, 5, 10]:
             temp_reject.append(float(s.reject_count)/tot_req)
         s.stop_simulation() #to log the the utilization
         temp_utilization.append(np.mean(s.avg_utiliz))
+        temp_missed_td.append(float(s.missed_td/tot_req))
         print "sec_count", sec_count
         
         print "link utilization ",np.mean(s.avg_utiliz)
         print "reject count = ",s.reject_count, " total requests = ",tot_req, "reject rate = ",reject
-        missed_td_rate = float(s.missed_td/tot_req)
-        print "flow missed deadlines",s.missed_td
+        print "flow missed deadline rate",float(s.missed_td/tot_req)
     
     #save results    
     log_dir="/users/fha6np/flow-level-simulator-calibers/FGCS-results/avg-transfer-exp-"+str(s_lambda)+"/results-"+sched+"-"+algo+"-ver-"+str(ver)+"/"
@@ -180,7 +181,7 @@ for epoch in [1]:#20*60]:#, 5, 10]:
     #f_handle = file(log_dir+file_name+'.csv', 'a')
     #np.savetxt(f_handle, np.transpose((arrival_rate,temp_reject,temp_utilization)), header="arrival_rate,reject_ratio,utilization" ,delimiter=',')
     #f_handle.close()
-    np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization,missed_td_rate)), header="arrival_rate,reject_ratio,utilization,missed_deadline_rate" ,delimiter=',')
+    np.savetxt(log_dir+file_name+'.csv',np.transpose((arrival_rate,temp_reject,temp_utilization,temp_missed_td)), header="arrival_rate,reject_ratio,utilization,missed_deadline_rate" ,delimiter=',')
 
 
 
