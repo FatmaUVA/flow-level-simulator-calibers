@@ -103,7 +103,7 @@ ver = sys.argv[4]
 run_no = sys.argv[6]
 reject_ratio = []
 utilization = []
-np.random.seed(run_no)
+np.random.seed(int(run_no))
 
 for epoch in [3*60]:#20*60]:#, 5, 10]:
     temp_utilization = []
