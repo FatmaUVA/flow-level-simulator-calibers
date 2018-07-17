@@ -1,3 +1,5 @@
+# This is the script I used for the latest version of FGCS paper 
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -71,7 +73,7 @@ plt.xlabel(r'Request arrival rate ($\lambda$)',fontsize=14)
 #plt.legend(title = "Algorithm:",loc='lower right')
 plt.legend(loc='upper left',ncol=3,bbox_to_anchor=(0.1,1.15))
 file_name="new-ver-"+str(ver)+"-Performance3-new-arrival-"+network+"-avg-transfer-"+str(avg_rate)+"-epoch-"+str(epoch)+"-sim-time-86400-td-3600-error-bar"
-plt.savefig(log_dir+file_name+'.png', bbox_inches='tight')
+plt.savefig(log_dir+file_name+'.svg', bbox_inches='tight',format="svg")
 
 
 
@@ -84,6 +86,7 @@ ax1.plot(arrival_rate,rej_global_ljf_mean*100,'gv-',linewidth=2.0,label = 'globa
 ax1.plot(arrival_rate,rej_local_sjf_mean*100,'r*-',linewidth=2.0,label = 'local-SJF')
 ax1.plot(arrival_rate,rej_local_ljf_mean*100,'mx-',linewidth=2.0,label = 'local-LJF')
 ax1.plot(arrival_rate,rej_fixed_sjf_mean*100,'ks-',linewidth=2.0,label = 'fixed')
+ax1.annotate('Reject rate', xy=(8, 36), xytext=(8, 35),arrowprops=dict(facecolor='black', shrink=0.05))
 ax1.tick_params(axis='both', which='major', labelsize=14)
 ax1.set_ylim(30,50)
 ax1.legend(loc='upper left',ncol=3,bbox_to_anchor=(0.1,1.15))
@@ -95,12 +98,17 @@ ax2.plot(arrival_rate,util_global_ljf_mean*100,'gv--',linewidth=2.0)
 ax2.plot(arrival_rate,util_local_sjf_mean*100,'r*--',linewidth=2.0)
 ax2.plot(arrival_rate,util_local_ljf_mean*100,'mx--',linewidth=2.0)
 ax2.plot(arrival_rate,util_fixed_sjf_mean*100,'ks--',linewidth=2.0)
+ax2.annotate('Utilization', xy=(4, 46), xytext=(4, 42),arrowprops=dict(facecolor='black', shrink=0.05))
 ax2.tick_params(axis='both', which='major', labelsize=14)
 ax2.set_ylim(50,75)
 #fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
-file_name="new-ver-"+str(ver)+"-reject-utilization-new-arrival-"+network+"-avg-transfer-"+str(avg_rate)+"-epoch-"+str(epoch)+"-sim-time-86400-td-3600-eroor-bar"
-plt.savefig(log_dir+file_name+'.png', bbox_inches='tight')
+#add arrows
+#ax1.annotate('Reject rate', xy=(8, 37), xytext=(8, 35),arrowprops=dict(facecolor='black', shrink=0.05))
+#ax2.annotate('Utilization', xy=(4, 46), xytext=(4, 42),arrowprops=dict(facecolor='black', shrink=0.05))
+
+file_name="fff-new-ver-"+str(ver)+"-reject-utilization-new-arrival-"+network+"-avg-transfer-"+str(avg_rate)+"-epoch-"+str(epoch)+"-sim-time-86400-td-3600-eroor-bar"
+plt.savefig(log_dir+file_name+'.svg',format="svg", bbox_inches='tight')
 
 # Shrink current axis by 30%
 #box = plt.get_position()
